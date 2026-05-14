@@ -185,6 +185,9 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: cargo audit
+        # Fails on advisories with `severity: error` (true vulns).
+        # Warnings (unsound, unmaintained, notice) are reported but don't fail.
+        run: cargo audit
