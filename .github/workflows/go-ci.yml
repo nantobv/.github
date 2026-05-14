@@ -165,4 +165,4 @@ jobs:
       - name: osv-scanner
         run: |
           go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
-          osv-scanner --lockfile=go.sum
+          osv-scanner --recursive --skip-git .
