@@ -13,9 +13,6 @@
 #       with:
 #         toolchain: 'stable'
 #
-# TODO before promoting to "required workflow": pin all third-party actions to
-# commit SHAs via pinact / zizmor (see plan step 6).
-#
 # Note: cargo-deny is gated behind run-cargo-deny because it requires a
 # deny.toml file. ccd already has one; add it elsewhere before enabling.
 name: Reusable Rust CI
@@ -43,6 +40,10 @@ on:
         description: "Optional minimum-supported Rust version to also test against"
         type: string
         default: ''
+      cargo-audit-version:
+        description: "Pinned cargo-audit version"
+        type: string
+        default: '0.22.1'
 
 permissions:
   contents: read
@@ -68,9 +69,11 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] rustup installs the requested toolchain; pinact carries the matching org exception.
         with:
           toolchain: ${{ inputs.toolchain }}
           components: rustfmt, clippy
@@ -96,9 +99,11 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] rustup installs the requested toolchain; pinact carries the matching org exception.
         with:
           toolchain: ${{ inputs.toolchain }}
 
@@ -148,9 +153,11 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] rustup installs the requested toolchain; pinact carries the matching org exception.
         with:
           toolchain: ${{ inputs.toolchain }}
 
@@ -173,7 +180,9 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: dtolnay/rust-toolchain@stable
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] rustup installs the requested toolchain; pinact carries the matching org exception.
         with:
           toolchain: ${{ inputs.msrv }}
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
@@ -191,6 +200,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: EmbarkStudios/cargo-deny-action@6c8f9facfa5047ec02d8485b6bf52b587b7777d1 # v2.0.18
         with:
           manifest-path: ${{ inputs.working-directory }}/Cargo.toml
@@ -207,8 +218,12 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+        env:
+          CARGO_AUDIT_VERSION: ${{ inputs.cargo-audit-version }}
+        run: cargo install cargo-audit --version "${CARGO_AUDIT_VERSION}" --locked
       - name: cargo audit
         # Fails on advisories with `severity: error` (true vulns).
         # Warnings (unsound, unmaintained, notice) are reported but don't fail.

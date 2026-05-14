@@ -14,11 +14,9 @@
 #         python-version: '3.12'
 #         mypy-paths: 'src tests'
 #
-# TODO before promoting to "required workflow": pin all third-party actions to
-# commit SHAs via pinact / zizmor (see plan step 6).
-#
 # This workflow assumes `uv` for dependency management (per Emanuele's stack).
-# It accepts both `pyproject.toml`-only and `requirements.txt` layouts.
+# It expects checked-in lockfiles by default; callers can disable uv-sync-locked
+# while bootstrapping a new Python project.
 name: Reusable Python CI
 
 on:
@@ -47,7 +45,15 @@ on:
       uv-version:
         description: "Pinned uv version"
         type: string
-        default: 'latest'
+        default: '0.11.14'
+      uv-sync-locked:
+        description: "Require the checked-in uv.lock during uv sync"
+        type: boolean
+        default: true
+      pip-audit-version:
+        description: "Pinned pip-audit version"
+        type: string
+        default: '2.10.0'
 
 permissions:
   contents: read
@@ -68,6 +74,8 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
@@ -76,10 +84,19 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install ${{ inputs.python-version }}
+        env:
+          PYTHON_VERSION: ${{ inputs.python-version }}
+        run: uv python install "${PYTHON_VERSION}"
 
       - name: Sync dependencies (incl. dev)
-        run: uv sync --all-extras --dev
+        env:
+          UV_SYNC_LOCKED: ${{ inputs.uv-sync-locked }}
+        run: |
+          args=(--all-extras --dev)
+          if [ "${UV_SYNC_LOCKED}" = "true" ]; then
+            args=(--locked "${args[@]}")
+          fi
+          uv sync "${args[@]}"
 
       - name: ruff check
         run: uv run ruff check .
@@ -96,6 +113,8 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
@@ -104,13 +123,26 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install ${{ inputs.python-version }}
+        env:
+          PYTHON_VERSION: ${{ inputs.python-version }}
+        run: uv python install "${PYTHON_VERSION}"
 
       - name: Sync dependencies (incl. dev)
-        run: uv sync --all-extras --dev
+        env:
+          UV_SYNC_LOCKED: ${{ inputs.uv-sync-locked }}
+        run: |
+          args=(--all-extras --dev)
+          if [ "${UV_SYNC_LOCKED}" = "true" ]; then
+            args=(--locked "${args[@]}")
+          fi
+          uv sync "${args[@]}"
 
       - name: mypy
-        run: uv run mypy --strict ${{ inputs.mypy-paths }}
+        env:
+          MYPY_PATHS: ${{ inputs.mypy-paths }}
+        run: |
+          read -r -a mypy_paths <<< "${MYPY_PATHS}"
+          uv run mypy --strict "${mypy_paths[@]}"
 
   # ---------------------------------------------------------------------------
   # Layer 1: correctness - pytest
@@ -124,6 +156,8 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
@@ -132,10 +166,19 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install ${{ inputs.python-version }}
+        env:
+          PYTHON_VERSION: ${{ inputs.python-version }}
+        run: uv python install "${PYTHON_VERSION}"
 
       - name: Sync dependencies (incl. dev)
-        run: uv sync --all-extras --dev
+        env:
+          UV_SYNC_LOCKED: ${{ inputs.uv-sync-locked }}
+        run: |
+          args=(--all-extras --dev)
+          if [ "${UV_SYNC_LOCKED}" = "true" ]; then
+            args=(--locked "${args[@]}")
+          fi
+          uv sync "${args[@]}"
 
       - name: pytest
         run: uv run pytest -ra --cov --cov-report=xml --cov-report=term
@@ -161,6 +204,8 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
@@ -169,10 +214,21 @@ jobs:
           enable-cache: true
 
       - name: Set up Python
-        run: uv python install ${{ inputs.python-version }}
+        env:
+          PYTHON_VERSION: ${{ inputs.python-version }}
+        run: uv python install "${PYTHON_VERSION}"
 
       - name: Sync dependencies
-        run: uv sync --all-extras --dev
+        env:
+          UV_SYNC_LOCKED: ${{ inputs.uv-sync-locked }}
+        run: |
+          args=(--all-extras --dev)
+          if [ "${UV_SYNC_LOCKED}" = "true" ]; then
+            args=(--locked "${args[@]}")
+          fi
+          uv sync "${args[@]}"
 
       - name: pip-audit
-        run: uv run --with pip-audit pip-audit --strict
+        env:
+          PIP_AUDIT_VERSION: ${{ inputs.pip-audit-version }}
+        run: uv run --with "pip-audit==${PIP_AUDIT_VERSION}" pip-audit --strict
