@@ -82,11 +82,63 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      - name: Provision org-wide golangci-lint defaults (if caller has no .golangci.yml)
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          if [ -f .golangci.yml ] || [ -f .golangci.yaml ]; then
+            echo "Caller has its own .golangci.yml — using that."
+            echo "GOLANGCI_ARGS=" >> "$GITHUB_ENV"
+          else
+            echo "Caller has no .golangci.yml — writing org-wide defaults."
+            cat > /tmp/org-golangci.yml <<'CFG'
+          # Org-wide golangci-lint defaults for nantobv/* Go repos.
+          # Keeps safety lints on (govet, ineffassign, unused, staticcheck SA*)
+          # while suppressing patterns that are universally accepted in Go
+          # service / CLI code:
+          version: "2"
+          linters:
+            default: standard
+            settings:
+              errcheck:
+                exclude-functions:
+                  - fmt.Fprint
+                  - fmt.Fprintln
+                  - fmt.Fprintf
+                  - io.Copy
+                  - os.Remove
+              staticcheck:
+                checks:
+                  - all
+                  - -QF*       # quickfix style suggestions
+                  - -ST1000    # package doc requirement
+              goconst:
+                min-occurrences: 6
+            exclusions:
+              rules:
+                # Defer-close patterns on io.Closer values: not actionable.
+                - linters:
+                    - errcheck
+                  text: "Error return value of `[^`]+\\.Close` is not checked"
+                # Tests don't need to check sql.Row.Scan.
+                - path: _test\.go
+                  linters:
+                    - errcheck
+                  text: "Error return value of `\\(\\*database/sql\\.Row\\)\\.Scan` is not checked"
+                # goconst on test files is too noisy on fixture strings.
+                - path: _test\.go
+                  linters:
+                    - goconst
+          CFG
+            echo "GOLANGCI_ARGS=--config=/tmp/org-golangci.yml" >> "$GITHUB_ENV"
+          fi
+
       - name: golangci-lint
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
           version: ${{ inputs.golangci-lint-version }}
           working-directory: ${{ inputs.working-directory }}
+          args: ${{ env.GOLANGCI_ARGS }}
 
       - name: go mod tidy is clean
         run: |
