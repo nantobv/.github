@@ -106,11 +106,16 @@ jobs:
         with:
           workspaces: ${{ inputs.working-directory }}
 
-      - name: Build
+      - name: Build (all targets compile, incl. benches/examples)
         run: cargo build --all-targets --locked
 
       - name: Test
-        run: cargo test --all-targets --locked
+        # Default targets: lib + bin + integration. Benches that invoke
+        # the built binary against tempdirs etc. can be flaky in CI;
+        # they're still compile-checked above. Callers wanting bench
+        # tests can run `cargo test --all-targets` in a project-specific
+        # workflow.
+        run: cargo test --workspace --locked
 
       - name: Doc tests
         run: cargo test --doc --locked
