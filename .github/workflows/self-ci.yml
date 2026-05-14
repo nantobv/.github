@@ -1,0 +1,14 @@
+# Self-CI for nantobv/.github: verify our own workflows are pinned.
+name: Self CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pinact-check:
+    uses: ./.github/workflows/pinact-check.yml
