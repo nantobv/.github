@@ -163,7 +163,6 @@ jobs:
           govulncheck ./...
 
       - name: osv-scanner
-        uses: google/osv-scanner-action/osv-scanner-action@v2
-        with:
-          scan-args: |-
-            --lockfile=${{ inputs.working-directory }}/go.sum
+        run: |
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest
+          osv-scanner --lockfile=go.sum
