@@ -117,7 +117,24 @@ jobs:
         # workflow.
         run: cargo test --workspace --locked
 
+      - name: Detect doc-test targets
+        id: doc-test-targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          has_doctest_target="$(
+            cargo metadata --no-deps --locked --format-version 1 |
+              python3 -c 'import json, sys; metadata = json.load(sys.stdin); print("true" if any(target.get("doctest", False) for package in metadata["packages"] for target in package["targets"]) else "false")'
+          )"
+          echo "has-doctest-target=${has_doctest_target}" >> "${GITHUB_OUTPUT}"
+          if [ "${has_doctest_target}" = "true" ]; then
+            echo "Found at least one cargo target with doctests enabled."
+          else
+            echo "No cargo targets with doctests enabled; skipping cargo test --doc."
+          fi
+
       - name: Doc tests
+        if: steps.doc-test-targets.outputs.has-doctest-target == 'true'
         run: cargo test --doc --locked
 
   # ---------------------------------------------------------------------------
