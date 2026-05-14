@@ -1,0 +1,47 @@
+# Reusable: enforce that all GitHub Actions in .github/workflows are
+# SHA-pinned (uses: foo/bar@<sha> # <ver>) per the nantobv/.github
+# pinact policy.
+#
+# Usage from a caller repo:
+#
+#   jobs:
+#     pinact-check:
+#       uses: nantobv/.github/.github/workflows/pinact-check.yml@main
+#
+# Runs `pinact run --check` against the caller's .github/workflows/.
+# A non-zero exit fails the job and tells the contributor to run
+# `pinact run` locally and commit the result.
+name: Reusable - pinact check
+
+on:
+  workflow_call:
+    inputs:
+      pinact-version:
+        description: "Pinned pinact version (e.g. 'v3.10.0', or 'latest')"
+        type: string
+        default: 'latest'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-pinact-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: pinact check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff  # v5.6.0
+        with:
+          go-version: 'stable'
+
+      - name: Install pinact
+        run: |
+          go install github.com/suzuki-shunsuke/pinact/v3/cmd/pinact@${{ inputs.pinact-version }}
+
+      - name: pinact run --check
+        run: pinact run --check
