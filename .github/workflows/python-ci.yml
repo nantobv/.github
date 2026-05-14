@@ -1,0 +1,178 @@
+# Reusable Python CI workflow for the nantobv org.
+#
+# Usage from a caller repo (.github/workflows/ci.yml):
+#
+#   name: CI
+#   on:
+#     push:
+#       branches: [main]
+#     pull_request:
+#   jobs:
+#     py:
+#       uses: nantobv/.github/.github/workflows/python-ci.yml@main
+#       with:
+#         python-version: '3.12'
+#         mypy-paths: 'src tests'
+#
+# TODO before promoting to "required workflow": pin all third-party actions to
+# commit SHAs via pinact / zizmor (see plan step 6).
+#
+# This workflow assumes `uv` for dependency management (per Emanuele's stack).
+# It accepts both `pyproject.toml`-only and `requirements.txt` layouts.
+name: Reusable Python CI
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: "Python version (e.g. '3.12')"
+        type: string
+        default: '3.12'
+      working-directory:
+        description: "Subdirectory containing pyproject.toml"
+        type: string
+        default: '.'
+      mypy-paths:
+        description: "Space-separated paths to type-check with mypy. Empty disables mypy."
+        type: string
+        default: ''
+      run-tests:
+        description: "Run pytest"
+        type: boolean
+        default: true
+      run-vuln-scan:
+        description: "Run pip-audit"
+        type: boolean
+        default: true
+      uv-version:
+        description: "Pinned uv version"
+        type: string
+        default: 'latest'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Layer 1: correctness - ruff (lint + format) + mypy
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ inputs.uv-version }}
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ inputs.python-version }}
+
+      - name: Sync dependencies (incl. dev)
+        run: uv sync --all-extras --dev
+
+      - name: ruff check
+        run: uv run ruff check .
+
+      - name: ruff format --check
+        run: uv run ruff format --check .
+
+  type:
+    name: Type check
+    if: ${{ inputs.mypy-paths != '' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ inputs.uv-version }}
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ inputs.python-version }}
+
+      - name: Sync dependencies (incl. dev)
+        run: uv sync --all-extras --dev
+
+      - name: mypy
+        run: uv run mypy --strict ${{ inputs.mypy-paths }}
+
+  # ---------------------------------------------------------------------------
+  # Layer 1: correctness - pytest
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test
+    if: ${{ inputs.run-tests }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ inputs.uv-version }}
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ inputs.python-version }}
+
+      - name: Sync dependencies (incl. dev)
+        run: uv sync --all-extras --dev
+
+      - name: pytest
+        run: uv run pytest -ra --cov --cov-report=xml --cov-report=term
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-coverage
+          path: ${{ inputs.working-directory }}/coverage.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Layer 2: supply chain - pip-audit against the resolved environment
+  # ---------------------------------------------------------------------------
+  vuln:
+    name: Vulnerability scan
+    if: ${{ inputs.run-vuln-scan }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ inputs.uv-version }}
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install ${{ inputs.python-version }}
+
+      - name: Sync dependencies
+        run: uv sync --all-extras --dev
+
+      - name: pip-audit
+        run: uv run --with pip-audit pip-audit --strict

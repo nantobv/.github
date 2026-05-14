@@ -1,0 +1,190 @@
+# Reusable Rust CI workflow for the nantobv org.
+#
+# Usage from a caller repo (.github/workflows/ci.yml):
+#
+#   name: CI
+#   on:
+#     push:
+#       branches: [main]
+#     pull_request:
+#   jobs:
+#     rust:
+#       uses: nantobv/.github/.github/workflows/rust-ci.yml@main
+#       with:
+#         toolchain: 'stable'
+#
+# TODO before promoting to "required workflow": pin all third-party actions to
+# commit SHAs via pinact / zizmor (see plan step 6).
+#
+# Note: cargo-deny is gated behind run-cargo-deny because it requires a
+# deny.toml file. ccd already has one; add it elsewhere before enabling.
+name: Reusable Rust CI
+
+on:
+  workflow_call:
+    inputs:
+      toolchain:
+        description: "Rust toolchain (e.g. 'stable', '1.82', 'nightly')"
+        type: string
+        default: 'stable'
+      working-directory:
+        description: "Subdirectory containing Cargo.toml"
+        type: string
+        default: '.'
+      run-cargo-deny:
+        description: "Run cargo-deny (requires deny.toml in repo)"
+        type: boolean
+        default: false
+      run-cargo-audit:
+        description: "Run cargo-audit"
+        type: boolean
+        default: true
+      msrv:
+        description: "Optional minimum-supported Rust version to also test against"
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+  RUSTDOCFLAGS: "-D warnings"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Layer 1: correctness - fmt + clippy
+  # ---------------------------------------------------------------------------
+  fmt-clippy:
+    name: Format & Clippy
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ inputs.working-directory }}
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        run: cargo clippy --all-targets --all-features --locked -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # Layer 1: correctness - tests
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ inputs.toolchain }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ inputs.working-directory }}
+
+      - name: Build
+        run: cargo build --all-targets --locked
+
+      - name: Test
+        run: cargo test --all-targets --locked
+
+      - name: Doc tests
+        run: cargo test --doc --locked
+
+  # ---------------------------------------------------------------------------
+  # Layer 1: correctness - docs build cleanly (catches broken intra-doc links)
+  # ---------------------------------------------------------------------------
+  doc:
+    name: Docs
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ inputs.toolchain }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ inputs.working-directory }}
+
+      - name: cargo doc
+        run: cargo doc --no-deps --all-features --locked
+
+  # ---------------------------------------------------------------------------
+  # Layer 1+: MSRV check - optional. If `msrv` input is set, builds against it.
+  # ---------------------------------------------------------------------------
+  msrv:
+    name: MSRV (${{ inputs.msrv }})
+    if: ${{ inputs.msrv != '' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ inputs.msrv }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ inputs.working-directory }}
+          key: msrv
+      - run: cargo build --all-targets --locked
+
+  # ---------------------------------------------------------------------------
+  # Layer 2: supply chain - cargo-deny (licenses, advisories, sources, bans)
+  # ---------------------------------------------------------------------------
+  deny:
+    name: cargo-deny
+    if: ${{ inputs.run-cargo-deny }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: ${{ inputs.working-directory }}/Cargo.toml
+
+  # ---------------------------------------------------------------------------
+  # Layer 2: supply chain - cargo-audit (RustSec advisory DB)
+  # ---------------------------------------------------------------------------
+  audit:
+    name: cargo-audit
+    if: ${{ inputs.run-cargo-audit }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

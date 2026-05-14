@@ -1,0 +1,169 @@
+# Reusable Go CI workflow for the nantobv org.
+#
+# Usage from a caller repo (.github/workflows/ci.yml):
+#
+#   name: CI
+#   on:
+#     push:
+#       branches: [main]
+#     pull_request:
+#   jobs:
+#     go:
+#       uses: nantobv/.github/.github/workflows/go-ci.yml@main
+#       with:
+#         go-version: '1.24'
+#
+# TODO before promoting to "required workflow": pin all third-party actions to
+# commit SHAs via pinact / zizmor (see plan step 6).
+name: Reusable Go CI
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: "Go version (e.g. '1.24', or 'stable')"
+        type: string
+        default: 'stable'
+      working-directory:
+        description: "Subdirectory containing go.mod"
+        type: string
+        default: '.'
+      run-race:
+        description: "Run tests with -race"
+        type: boolean
+        default: true
+      run-vuln-scan:
+        description: "Run govulncheck and osv-scanner"
+        type: boolean
+        default: true
+      golangci-lint-version:
+        description: "golangci-lint version (e.g. 'latest' or 'v1.62.0')"
+        type: string
+        default: 'latest'
+
+# Least-privilege default. Individual jobs upgrade as needed.
+permissions:
+  contents: read
+
+# Cancel superseded PR runs; keep main runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Layer 1: correctness - format, vet, lint, tidy
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+          cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+
+      - name: gofumpt (stricter gofmt)
+        run: |
+          go install mvdan.cc/gofumpt@latest
+          diff=$(gofumpt -l -d .)
+          if [ -n "$diff" ]; then
+            echo "::error::gofumpt found formatting issues:"
+            echo "$diff"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          staticcheck ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: ${{ inputs.golangci-lint-version }}
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: go mod tidy is clean
+        run: |
+          go mod tidy
+          if ! git diff --exit-code -- go.mod go.sum; then
+            echo "::error::go mod tidy produced changes - commit them"
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Layer 1: correctness - build + tests with race detector and coverage
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+          cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+
+      - name: Build (smoke test all packages compile)
+        run: go build ./...
+
+      - name: Test
+        run: |
+          flags="-shuffle=on -coverprofile=coverage.out -covermode=atomic"
+          if [ "${{ inputs.run-race }}" = "true" ]; then
+            flags="-race $flags"
+          fi
+          go test $flags ./...
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-coverage
+          path: ${{ inputs.working-directory }}/coverage.out
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Layer 2: supply chain - vulnerability scanning
+  # ---------------------------------------------------------------------------
+  vuln:
+    name: Vulnerability scan
+    if: ${{ inputs.run-vuln-scan }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+          cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: osv-scanner
+        uses: google/osv-scanner-action/osv-scanner-action@v2
+        with:
+          scan-args: |-
+            --lockfile=${{ inputs.working-directory }}/go.sum
