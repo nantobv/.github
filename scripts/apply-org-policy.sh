@@ -89,7 +89,7 @@ ruleset_payload=$(jq \
   }]' \
   "$RULESET_JSON")
 
-existing_id=$(gh api "orgs/${ORG}/rulesets" \
+existing_id=$(gh api --paginate "orgs/${ORG}/rulesets" \
   --jq '.[] | select(.name=="production-main") | .id' || true)
 
 if [ -n "$existing_id" ]; then
