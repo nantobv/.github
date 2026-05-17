@@ -25,11 +25,19 @@ on:
   pull_request_review:
     types: [submitted]
 
-# Caller-level minimum. The reusable workflow declares its own job-level
-# permissions (contents/issues/pull-requests write, id-token write,
-# actions read) which take effect for the reusable's jobs.
+# Caller-level permissions must be at least as broad as what the
+# reusable workflow's job-level block requests, otherwise GitHub
+# pre-validates and rejects the run with `startup_failure` before any
+# job starts. These mirror claude-reusable.yml's `jobs.claude.permissions:`
+# block one-for-one. Each is required: contents (post a comment / branch),
+# issues + pull-requests (write replies), id-token (OIDC for the
+# action's auth), actions read (read workflow context).
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
 
 jobs:
   claude:
