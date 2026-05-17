@@ -18,5 +18,7 @@ ignore_actions:
   # consumes nantobv/.github/.github/workflows/*.yml@main, and the required-
   # workflow ruleset rule pins to refs/heads/main too. SHA-pinning the ref
   # would defeat the "one place to update org policy" model.
-  - name: nantobv/.github
+  # `name` is a regex; the path-wildcard matches the full reusable-workflow
+  # `uses:` ref (org/repo/path), not just the org/repo prefix.
+  - name: nantobv/\.github/.*
     ref: main
