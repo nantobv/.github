@@ -9,7 +9,10 @@ on:
   pull_request_review_comment:
     types: [created]
   issues:
-    types: [opened, assigned]
+    # Only `opened`. Adding `assigned` would re-fire @claude on every
+    # assignment change of an issue whose body/title already contains
+    # @claude, burning quota on routine triage actions.
+    types: [opened]
   pull_request_review:
     types: [submitted]
 
