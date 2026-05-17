@@ -10,9 +10,10 @@ permissions:
   contents: read
 
 jobs:
-  pinact-check:
-    uses: ./.github/workflows/pinact-check.yml
-
+  # pinact-check is no longer invoked here. It runs via
+  # required-pinact-check.yml on pull_request/merge_queue. This avoids
+  # duplicate runs once the production ruleset's required-workflow rule
+  # is enabled (see scripts/apply-org-policy.sh and ORG-POLICY.md).
   workflow-lint:
     name: Workflow lint
     runs-on: ubuntu-latest

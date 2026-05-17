@@ -53,22 +53,25 @@ Targets the default branch of every repo with `tier=production`. Rules:
 > self-merge after CI is green. The PR mechanism + thread-resolution is
 > what's enforced.
 
-### Phase 2: required workflows
+### Required workflows (opt-in)
 
-The ruleset has a hook for a **required workflow** (`workflows` rule type) that gates
-merge on a named workflow file in `nantobv/.github`. It's off by default
-because the GitHub API rejects reusable (workflow_call-only) workflows:
-the target must have a `pull_request` / `pull_request_target` /
-`merge_queue` trigger. Once a non-reusable wrapper (e.g.
-`.github/workflows/required-pinact-check.yml`) lands on `main`, enable it
-with:
+The ruleset can also enforce a **required workflow** (`workflows` rule
+type) that gates merge on a named workflow file in `nantobv/.github`.
+It's opt-in because the GitHub API rejects reusable (workflow_call-only)
+workflows — the target must have a `pull_request`/`pull_request_target`/
+`merge_queue` trigger.
+
+A non-reusable wrapper lives at `.github/workflows/required-pinact-check.yml`
+and calls the reusable `pinact-check.yml`. To turn the rule on once the
+wrapper is on `main`:
 
 ```sh
 REQUIRED_WORKFLOW_PATH=.github/workflows/required-pinact-check.yml \
   ./scripts/apply-org-policy.sh
 ```
 
-To extend with language-specific required workflows, add additional
+To extend with language-specific required workflows, add similar wrappers
+(`.github/workflows/required-{go,rust,python}-ci.yml`) and additional
 entries to the `workflows` rule in `scripts/apply-org-policy.sh`.
 
 ## Workflow templates
