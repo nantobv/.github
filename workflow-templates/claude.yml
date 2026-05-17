@@ -1,0 +1,40 @@
+# Created from the nantobv/.github workflow template "Claude Code".
+# Wires this repo into the nantobv reusable Claude Code responder.
+#
+# Prerequisites (one-time, org-level — already in place for nantobv):
+#   - The Anthropic Claude GitHub App installed on the org with
+#     "All repositories" scope.
+#   - An org-level Actions secret CLAUDE_CODE_OAUTH_TOKEN reachable
+#     from this repo.
+#
+# Behavior, security gate (@claude must come from OWNER/MEMBER/COLLABORATOR),
+# and SHA-pinned action versions live in the reusable workflow:
+#   nantobv/.github/.github/workflows/claude-reusable.yml
+name: Claude Code
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    # Only `opened`. Adding `assigned` would re-fire @claude on every
+    # assignment change of an issue whose body/title already contains
+    # @claude, burning quota on routine triage actions.
+    types: [opened]
+  pull_request_review:
+    types: [submitted]
+
+# Caller-level minimum. The reusable workflow declares its own job-level
+# permissions (contents/issues/pull-requests write, id-token write,
+# actions read) which take effect for the reusable's jobs.
+permissions:
+  contents: read
+
+jobs:
+  claude:
+    uses: nantobv/.github/.github/workflows/claude-reusable.yml@main # zizmor: ignore[unpinned-uses] same-org reusable workflow tracks @main by design; matching exception lives in .pinact.yaml.
+    # Pass only the secret the reusable declares it needs; avoid the
+    # blast radius of `secrets: inherit`.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

@@ -1,0 +1,5 @@
+{
+  "name": "Nanto BV — Claude Code (@claude responder)",
+  "description": "Wires this repo into the nantobv reusable Claude Code workflow. Responds to @claude mentions from org members in issues, PRs, and reviews. Requires the Anthropic Claude GitHub App + CLAUDE_CODE_OAUTH_TOKEN org secret.",
+  "categories": ["AI assisted development", "Continuous integration"]
+}
