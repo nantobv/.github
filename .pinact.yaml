@@ -14,3 +14,9 @@ ignore_actions:
     ref: nightly
   - name: dtolnay/rust-toolchain
     ref: master
+  # Same-org reusable workflows track @main by design — every nantobv repo
+  # consumes nantobv/.github/.github/workflows/*.yml@main, and the required-
+  # workflow ruleset rule pins to refs/heads/main too. SHA-pinning the ref
+  # would defeat the "one place to update org policy" model.
+  - name: nantobv/.github
+    ref: main
