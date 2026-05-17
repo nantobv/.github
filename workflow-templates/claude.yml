@@ -24,5 +24,5 @@ on:
 
 jobs:
   claude:
-    uses: nantobv/.github/.github/workflows/claude-reusable.yml@main
+    uses: nantobv/.github/.github/workflows/claude-reusable.yml@main # zizmor: ignore[unpinned-uses] same-org reusable workflow tracks @main by design; matching exception lives in .pinact.yaml.
     secrets: inherit
