@@ -1,0 +1,6 @@
+{
+  "name": "Nanto BV — Python CI",
+  "description": "Reusable Python CI from nantobv/.github (uv-based): ruff check + ruff format --check, mypy --strict (opt-in), pytest with coverage, pip-audit, and pinact policy enforcement.",
+  "categories": ["Python", "Continuous integration"],
+  "filePatterns": ["pyproject.toml$"]
+}

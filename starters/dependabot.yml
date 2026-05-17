@@ -1,0 +1,65 @@
+# Starter Dependabot configuration for nantobv/* repos.
+#
+# Copy this file to .github/dependabot.yml in your repo, then uncomment
+# the ecosystem section(s) that match the project's stack.
+#
+# Notes:
+# - The github-actions block keeps SHA-pinned action references current.
+#   Dependabot rewrites the pinned SHA *and* the trailing `# vX.Y.Z` comment,
+#   which is what `pinact run --check` expects.
+# - Patch and minor updates are grouped into a single weekly PR per ecosystem
+#   so CI doesn't fan out across dozens of PRs. Major updates remain individual.
+# - For private repos, vulnerability alerts come from Dependabot for free on
+#   Enterprise Cloud; security updates open PRs even when version updates are
+#   disabled for that ecosystem.
+#
+# Reference: https://docs.github.com/en/code-security/dependabot
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]
+
+  # ----- Go -----
+  # - package-ecosystem: gomod
+  #   directory: /
+  #   schedule:
+  #     interval: weekly
+  #   groups:
+  #     go-deps:
+  #       patterns: ["*"]
+  #       update-types: ["patch", "minor"]
+
+  # ----- Rust -----
+  # - package-ecosystem: cargo
+  #   directory: /
+  #   schedule:
+  #     interval: weekly
+  #   groups:
+  #     rust-deps:
+  #       patterns: ["*"]
+  #       update-types: ["patch", "minor"]
+
+  # ----- Python (works against pyproject.toml; uv.lock is not parsed by
+  #               Dependabot yet — security updates still apply via the
+  #               resolved environment) -----
+  # - package-ecosystem: pip
+  #   directory: /
+  #   schedule:
+  #     interval: weekly
+  #   groups:
+  #     python-deps:
+  #       patterns: ["*"]
+  #       update-types: ["patch", "minor"]
+
+  # ----- Docker (uncomment if the repo has a Dockerfile at root) -----
+  # - package-ecosystem: docker
+  #   directory: /
+  #   schedule:
+  #     interval: weekly

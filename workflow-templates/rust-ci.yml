@@ -1,0 +1,26 @@
+# Created from the nantobv/.github workflow template "Rust CI".
+# Wraps the org-wide reusable Rust workflow (fmt, clippy, test, doc,
+# cargo-audit; cargo-deny opt-in) plus the pinact policy enforcement.
+#
+# Inputs documented at:
+#   https://github.com/nantobv/.github/blob/main/.github/workflows/rust-ci.yml
+name: CI
+
+on:
+  push:
+    branches: [$default-branch]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    uses: nantobv/.github/.github/workflows/rust-ci.yml@main
+    with:
+      toolchain: 'stable'
+      # Enable once you've checked in a deny.toml:
+      # run-cargo-deny: true
+
+  pinact:
+    uses: nantobv/.github/.github/workflows/pinact-check.yml@main

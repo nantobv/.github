@@ -1,0 +1,27 @@
+# Created from the nantobv/.github workflow template "Python CI".
+# Wraps the org-wide reusable Python workflow (uv-based: ruff lint+format,
+# mypy --strict on opt-in paths, pytest with coverage, pip-audit) plus
+# the pinact policy enforcement.
+#
+# Inputs documented at:
+#   https://github.com/nantobv/.github/blob/main/.github/workflows/python-ci.yml
+name: CI
+
+on:
+  push:
+    branches: [$default-branch]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  py:
+    uses: nantobv/.github/.github/workflows/python-ci.yml@main
+    with:
+      python-version: '3.12'
+      # Set the directories you want mypy --strict to type-check (empty disables):
+      # mypy-paths: 'src tests'
+
+  pinact:
+    uses: nantobv/.github/.github/workflows/pinact-check.yml@main
