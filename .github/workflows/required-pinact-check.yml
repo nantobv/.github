@@ -19,7 +19,7 @@ name: Required - pinact check
 
 on:
   pull_request:
-  merge_queue:
+  merge_group:
 
 permissions:
   contents: read
