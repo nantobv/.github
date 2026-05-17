@@ -48,18 +48,28 @@ Targets the default branch of every repo with `tier=production`. Rules:
 - **non_fast_forward** — block force pushes
 - **required_linear_history** — no merge commits on `main`; rebase or squash
 - **pull_request** — require PR to merge (0 approvals, thread resolution required, stale reviews dismissed)
-- **workflows** — require `nantobv/.github` → `pinact-check.yml@main` to pass before merge
 
 > **Solo-dev note:** `required_approving_review_count` is `0` so you can
-> self-merge after CI is green. The PR mechanism itself (and the required
-> workflow) is what's enforced.
+> self-merge after CI is green. The PR mechanism + thread-resolution is
+> what's enforced.
 
-To extend with language-specific required workflows, add entries to the
-`workflows` rule in `scripts/apply-org-policy.sh` referencing
-`.github/workflows/{go,rust,python}-ci.yml`. Targeting a workflow at a
-repo with a different language is harmless — the caller workflow simply
-won't have the right inputs and will fail loudly, which is what you want
-for misconfigured repos.
+### Phase 2: required workflows
+
+The ruleset has a hook for a **required workflow** (`workflows` rule type) that gates
+merge on a named workflow file in `nantobv/.github`. It's off by default
+because the GitHub API rejects reusable (workflow_call-only) workflows:
+the target must have a `pull_request` / `pull_request_target` /
+`merge_queue` trigger. Once a non-reusable wrapper (e.g.
+`.github/workflows/required-pinact-check.yml`) lands on `main`, enable it
+with:
+
+```sh
+REQUIRED_WORKFLOW_PATH=.github/workflows/required-pinact-check.yml \
+  ./scripts/apply-org-policy.sh
+```
+
+To extend with language-specific required workflows, add additional
+entries to the `workflows` rule in `scripts/apply-org-policy.sh`.
 
 ## Workflow templates
 

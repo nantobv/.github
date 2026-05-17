@@ -72,22 +72,38 @@ upsert_property "tier" \
 # ---------------------------------------------------------------------------
 echo "==> Ruleset: production-main"
 
-dot_github_repo_id=$(gh api "repos/${ORG}/${DOT_GITHUB_REPO}" --jq .id)
-echo "    - resolved ${ORG}/${DOT_GITHUB_REPO} repo_id=${dot_github_repo_id}"
+# Optional: inject a `workflows` rule that requires a named workflow file
+# from nantobv/.github@main to pass before merge. Off by default because
+# it requires the target workflow file to (a) exist on `main` at apply
+# time, and (b) have one of pull_request / pull_request_target /
+# merge_queue triggers — a reusable (workflow_call-only) workflow is
+# rejected by the API with HTTP 422. Enable once a non-reusable wrapper
+# (e.g. required-pinact-check.yml) is on main.
+#
+#   REQUIRED_WORKFLOW_PATH=.github/workflows/required-pinact-check.yml \
+#     ./scripts/apply-org-policy.sh
+REQUIRED_WORKFLOW_PATH="${REQUIRED_WORKFLOW_PATH:-}"
 
-ruleset_payload=$(jq \
-  --argjson repo_id "$dot_github_repo_id" \
-  '.rules += [{
-    type: "workflows",
-    parameters: {
-      workflows: [{
-        repository_id: $repo_id,
-        path: ".github/workflows/pinact-check.yml",
-        ref: "refs/heads/main"
-      }]
-    }
-  }]' \
-  "$RULESET_JSON")
+if [ -n "$REQUIRED_WORKFLOW_PATH" ]; then
+  dot_github_repo_id=$(gh api "repos/${ORG}/${DOT_GITHUB_REPO}" --jq .id)
+  echo "    - injecting required workflow: ${DOT_GITHUB_REPO}/${REQUIRED_WORKFLOW_PATH}@main"
+  ruleset_payload=$(jq \
+    --argjson repo_id "$dot_github_repo_id" \
+    --arg path "$REQUIRED_WORKFLOW_PATH" \
+    '.rules += [{
+      type: "workflows",
+      parameters: {
+        workflows: [{
+          repository_id: $repo_id,
+          path: $path,
+          ref: "refs/heads/main"
+        }]
+      }
+    }]' \
+    "$RULESET_JSON")
+else
+  ruleset_payload=$(cat "$RULESET_JSON")
+fi
 
 existing_id=$(gh api --paginate "orgs/${ORG}/rulesets" \
   --jq '.[] | select(.name=="production-main") | .id' || true)
