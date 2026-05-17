@@ -41,6 +41,12 @@ env:
 
 jobs:
   claude:
+    # Bound worst-case runtime. Default GHA job timeout is 360 minutes,
+    # which lets a runaway Claude task (infinite tool loop, bad prompt,
+    # etc.) burn substantial subscription quota per invocation. 15 min
+    # is generous for any genuine @claude reply / small refactor task;
+    # longer work should be split across multiple invocations.
+    timeout-minutes: 15
     if: |
       (github.event_name == 'issue_comment' &&
         contains(github.event.comment.body, '@claude') &&
