@@ -1,0 +1,29 @@
+# Non-reusable wrapper around pinact-check.yml.
+#
+# Purpose: GitHub's `workflows` ruleset rule rejects workflows that only
+# have `workflow_call` triggers (HTTP 422: "Workflow must have one of the
+# following triggers configured: merge_queue, pull_request_target,
+# pull_request"). This file provides those triggers so the production
+# ruleset can reference it as a required workflow.
+#
+# To enable as a required workflow on `tier=production` repos:
+#
+#   REQUIRED_WORKFLOW_PATH=.github/workflows/required-pinact-check.yml \
+#     ./scripts/apply-org-policy.sh
+#
+# Safety: no run: steps reference untrusted PR-provided inputs. The
+# reusable workflow this calls is also injection-safe (it installs pinact
+# from a pinned version env var and runs `pinact run --check` against
+# the checked-out tree).
+name: Required - pinact check
+
+on:
+  pull_request:
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  pinact:
+    uses: nantobv/.github/.github/workflows/pinact-check.yml@main # zizmor: ignore[unpinned-uses] same-org reusable workflow tracks @main by design; matching exception lives in .pinact.yaml.

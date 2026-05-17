@@ -1,0 +1,6 @@
+{
+  "name": "Nanto BV — Go CI",
+  "description": "Reusable Go CI from nantobv/.github: build, vet, test (race + coverage), golangci-lint, govulncheck, osv-scanner, and pinact policy enforcement.",
+  "categories": ["Go", "Continuous integration"],
+  "filePatterns": ["go.mod$"]
+}

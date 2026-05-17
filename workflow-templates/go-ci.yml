@@ -1,0 +1,24 @@
+# Created from the nantobv/.github workflow template "Go CI".
+# Wraps the org-wide reusable Go workflow (build, vet, test, golangci-lint,
+# govulncheck, osv-scanner) plus the pinact policy enforcement.
+#
+# Inputs documented at:
+#   https://github.com/nantobv/.github/blob/main/.github/workflows/go-ci.yml
+name: CI
+
+on:
+  push:
+    branches: [$default-branch]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    uses: nantobv/.github/.github/workflows/go-ci.yml@main
+    with:
+      go-version-file: 'go.mod'
+
+  pinact:
+    uses: nantobv/.github/.github/workflows/pinact-check.yml@main

@@ -1,0 +1,6 @@
+{
+  "name": "Nanto BV — Rust CI",
+  "description": "Reusable Rust CI from nantobv/.github: fmt --check, clippy -D warnings, cargo test, cargo doc, cargo-audit (cargo-deny opt-in), and pinact policy enforcement.",
+  "categories": ["Rust", "Continuous integration"],
+  "filePatterns": ["Cargo.toml$"]
+}
