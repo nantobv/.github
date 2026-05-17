@@ -22,7 +22,16 @@ on:
   pull_request_review:
     types: [submitted]
 
+# Caller-level minimum. The reusable workflow declares its own job-level
+# permissions (contents/issues/pull-requests write, id-token write,
+# actions read) which take effect for the reusable's jobs.
+permissions:
+  contents: read
+
 jobs:
   claude:
     uses: nantobv/.github/.github/workflows/claude-reusable.yml@main # zizmor: ignore[unpinned-uses] same-org reusable workflow tracks @main by design; matching exception lives in .pinact.yaml.
-    secrets: inherit
+    # Pass only the secret the reusable declares it needs; avoid the
+    # blast radius of `secrets: inherit`.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
