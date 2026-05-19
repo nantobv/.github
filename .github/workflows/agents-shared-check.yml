@@ -1,0 +1,81 @@
+# Reusable workflow that verifies a caller repo's AGENTS.md still contains
+# the canonical nantobv-shared block from nantobv/.github/AGENTS.shared.md.
+#
+# This workflow does not read any github.event.* untrusted fields. All
+# interpolation is over checked-out files only.
+#
+# Caller pattern (in any nantobv repo, .github/workflows/agents-shared-check.yml):
+#
+#   name: AGENTS shared block check
+#   on:
+#     pull_request:
+#       paths: [AGENTS.md, .github/workflows/agents-shared-check.yml]
+#     push:
+#       branches: [main]
+#       paths: [AGENTS.md]
+#   jobs:
+#     check:
+#       uses: nantobv/.github/.github/workflows/agents-shared-check.yml@main
+#
+# To make this a required check on the production ruleset, add a
+# non-reusable wrapper at .github/workflows/required-agents-shared-check.yml
+# in nantobv/.github (mirroring required-pinact-check.yml) and extend the
+# `workflows` rule in scripts/apply-org-policy.sh.
+name: Reusable AGENTS shared block check
+
+on:
+  workflow_call: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Fetch canonical AGENTS.shared.md
+        run: |
+          curl -sSfL \
+            "https://raw.githubusercontent.com/nantobv/.github/main/AGENTS.shared.md" \
+            -o /tmp/AGENTS.shared.md
+
+      - name: Verify embedded block matches canonical
+        run: |
+          set -euo pipefail
+          BEGIN_MARKER='<!-- BEGIN nantobv-shared (sync via nantobv/.github/scripts/sync-agents-shared.sh) -->'
+          END_MARKER='<!-- END nantobv-shared -->'
+
+          if [ ! -f AGENTS.md ]; then
+            echo "::error::AGENTS.md not found in caller repo"
+            exit 1
+          fi
+
+          if ! grep -qF "$BEGIN_MARKER" AGENTS.md \
+              || ! grep -qF "$END_MARKER" AGENTS.md; then
+            echo "::error::AGENTS.md is missing the nantobv-shared marker pair."
+            echo "::error::Add markers, then run scripts/sync-agents-shared.sh and commit."
+            exit 1
+          fi
+
+          awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" '
+            $0 == b { flag = 1; next }
+            $0 == e { flag = 0 }
+            flag { print }
+          ' AGENTS.md > /tmp/embedded.md
+
+          # Strip trailing whitespace on both sides for the diff.
+          sed -e 's/[[:space:]]\+$//' /tmp/AGENTS.shared.md > /tmp/canonical.norm
+          sed -e 's/[[:space:]]\+$//' /tmp/embedded.md > /tmp/embedded.norm
+
+          if ! diff -u /tmp/canonical.norm /tmp/embedded.norm; then
+            echo "::error::AGENTS.md shared block has drifted from nantobv/.github/AGENTS.shared.md"
+            echo "::error::Run scripts/sync-agents-shared.sh locally and commit the result."
+            exit 1
+          fi
+          echo "AGENTS.md shared block is in sync with nantobv/.github."

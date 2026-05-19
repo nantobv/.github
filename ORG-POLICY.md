@@ -12,6 +12,7 @@ workflows) is captured here as code, with an idempotent apply script.
 | Reusable CI workflows            | `.github/workflows/*.yml`                    | Each caller repo (`uses:`)                   |
 | Workflow templates (UI picker)   | `workflow-templates/*.yml` + `.properties.json` | GitHub, automatically from the `.github` repo |
 | Starter Dependabot config        | `starters/dependabot.yml`                    | Copy-paste into each repo                    |
+| Shared AGENTS.md agent policy    | `AGENTS.shared.md`                           | Vendored via `scripts/sync-agents-shared.sh` |
 | Custom repo properties           | `scripts/apply-org-policy.sh`                | `./scripts/apply-org-policy.sh`              |
 | Production ruleset (branch protection + required workflow) | `scripts/rulesets/production.json` | `./scripts/apply-org-policy.sh` |
 | Community health defaults (CoC, CONTRIBUTING, SECURITY, PR/issue templates) | Repo root + `ISSUE_TEMPLATE/` | GitHub, automatically from the `.github` repo |
@@ -73,6 +74,38 @@ REQUIRED_WORKFLOW_PATH=.github/workflows/required-pinact-check.yml \
 To extend with language-specific required workflows, add similar wrappers
 (`.github/workflows/required-{go,rust,python}-ci.yml`) and additional
 entries to the `workflows` rule in `scripts/apply-org-policy.sh`.
+
+## Shared AGENTS.md block
+
+`AGENTS.shared.md` is the canonical org-wide AI agent policy — git hygiene,
+plan-first, evidence-before-claiming-done, no secrets, source-files-are-user-owned,
+and the `claude-adversarial-review` standing grant. GitHub's community-health-file
+auto-fallback does not cover `AGENTS.md`, and AI agents read it from the local
+working tree at runtime, so the file is **vendored into each repo's `AGENTS.md`**
+between marker comments rather than auto-applied.
+
+To wire a new repo:
+
+1. Add the marker pair to the repo's `AGENTS.md` (typically after the
+   **Project** section):
+
+   ```markdown
+   <!-- BEGIN nantobv-shared (sync via nantobv/.github/scripts/sync-agents-shared.sh) -->
+   (this body is replaced by sync-agents-shared.sh)
+   <!-- END nantobv-shared -->
+   ```
+
+2. Run `scripts/sync-agents-shared.sh` from the repo root. Idempotent;
+   resolves the canonical source from `$NANTOBV_SHARED_PATH`, a sibling
+   `nantobv/.github/` clone, or `curl` against `main` in that order.
+
+3. Optionally add a caller workflow that fails CI on drift — see
+   [`.github/workflows/agents-shared-check.yml`](.github/workflows/agents-shared-check.yml)
+   for the reusable workflow.
+
+The required-check wrapper and ruleset wiring are deferred until every active
+repo has the marker block embedded; otherwise a required check would fail
+on un-migrated repos.
 
 ## Workflow templates
 
