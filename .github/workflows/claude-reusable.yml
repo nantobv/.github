@@ -22,12 +22,10 @@
 # by the caller repo — an org-level secret with "All repositories" scope
 # covers every nantobv repo automatically.
 #
-# Security: the if: filter requires both a @claude mention AND that the
-# author is an OWNER/MEMBER/COLLABORATOR. Without the author gate, anyone
-# who can comment on a public nantobv repo could fire Claude and burn
-# the subscription quota. All github.event.*.body|title references are
-# used only inside contains(...) expressions — never interpolated into
-# shell commands, so no command-injection surface.
+# Security: caller workflows must gate invocations on both a @claude mention
+# and an OWNER/MEMBER/COLLABORATOR author. The original webhook payload is
+# available in the caller workflow, not reliably inside this workflow_call
+# callee, so duplicating the gate here would skip legitimate invocations.
 name: Reusable Claude Code
 
 on:
@@ -47,19 +45,6 @@ jobs:
     # is generous for any genuine @claude reply / small refactor task;
     # longer work should be split across multiple invocations.
     timeout-minutes: 15
-    if: |
-      (github.event_name == 'issue_comment' &&
-        contains(github.event.comment.body, '@claude') &&
-        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
-      (github.event_name == 'pull_request_review_comment' &&
-        contains(github.event.comment.body, '@claude') &&
-        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
-      (github.event_name == 'pull_request_review' &&
-        contains(github.event.review.body, '@claude') &&
-        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association)) ||
-      (github.event_name == 'issues' &&
-        (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) &&
-        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association))
     runs-on: ubuntu-latest
     permissions:
       contents: write
