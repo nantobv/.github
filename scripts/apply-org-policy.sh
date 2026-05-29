@@ -189,6 +189,70 @@ else
   echo "==> Skipping production-<lang>-ci rulesets (APPLY_REQUIRED_CI=false)"
 fi
 
+# --- 2c. Bot-review gate: Copilot must review HEAD + threads resolved --------
+#
+# Two cooperating rulesets, both scoped to tier=production:
+#  - production-copilot-review: turns on Copilot auto-review with
+#    review_on_push=true, so HEAD is always (re-)reviewed after a fixup push.
+#    Without this the review gate would deadlock once you push past Copilot's
+#    first pass.
+#  - production-review-gate: requires the required-copilot-review-gate.yml
+#    workflow, which stays red until Copilot has reviewed the current HEAD and
+#    every review thread is resolved (closes the merge-before-review race).
+#
+# Same prerequisite as the language gates: the wrapper must be on
+# nantobv/.github@main. Skip while bootstrapping with: APPLY_REVIEW_GATE=false
+APPLY_REVIEW_GATE="${APPLY_REVIEW_GATE:-true}"
+
+if [ "$APPLY_REVIEW_GATE" = "true" ]; then
+  echo "==> Ruleset: production-copilot-review (Copilot auto-review, review_on_push)"
+  copilot_payload=$(jq -n '{
+    name: "production-copilot-review",
+    target: "branch",
+    enforcement: "active",
+    conditions: {
+      ref_name: { include: ["~DEFAULT_BRANCH"], exclude: [] },
+      repository_property: {
+        include: [{ name: "tier", property_values: ["production"] }],
+        exclude: []
+      }
+    },
+    rules: [{
+      type: "copilot_code_review",
+      parameters: { review_on_push: true, review_draft_pull_requests: false }
+    }],
+    bypass_actors: []
+  }')
+  upsert_ruleset "production-copilot-review" "$copilot_payload"
+
+  echo "==> Ruleset: production-review-gate (required Copilot-review check)"
+  gate_payload=$(jq -n \
+    --argjson repo_id "$dot_github_repo_id" \
+    --arg path ".github/workflows/required-copilot-review-gate.yml" \
+    '{
+      name: "production-review-gate",
+      target: "branch",
+      enforcement: "active",
+      conditions: {
+        ref_name: { include: ["~DEFAULT_BRANCH"], exclude: [] },
+        repository_property: {
+          include: [{ name: "tier", property_values: ["production"] }],
+          exclude: []
+        }
+      },
+      rules: [{
+        type: "workflows",
+        parameters: {
+          workflows: [{ repository_id: $repo_id, path: $path, ref: "refs/heads/main" }]
+        }
+      }],
+      bypass_actors: []
+    }')
+  upsert_ruleset "production-review-gate" "$gate_payload"
+else
+  echo "==> Skipping review-gate rulesets (APPLY_REVIEW_GATE=false)"
+fi
+
 # ---------------------------------------------------------------------------
 # 3. Next steps
 # ---------------------------------------------------------------------------
