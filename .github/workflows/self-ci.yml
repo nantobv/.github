@@ -30,7 +30,10 @@ jobs:
       - name: actionlint
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          actionlint
+          # actionlint v1.7.12's hardcoded webhook list predates
+          # pull_request_review_thread (a real trigger used by the Copilot
+          # review gate); ignore that one known-good "unknown event" error.
+          actionlint -ignore 'unknown Webhook event "pull_request_review_thread"'
 
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:

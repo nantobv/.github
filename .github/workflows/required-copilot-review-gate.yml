@@ -1,0 +1,33 @@
+# Non-reusable wrapper that makes the Copilot review gate a *required* check
+# on tier=production repos (wired by scripts/apply-org-policy.sh into the
+# production-review-gate ruleset).
+#
+# Triggers matter here: beyond pull_request, it re-evaluates on
+# pull_request_review (Copilot/human posts a review) and
+# pull_request_review_thread (a thread is resolved/unresolved) so the required
+# check flips green the moment the conditions are met — without a re-push.
+name: Required - Copilot review gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+  pull_request_review_thread:
+    types: [resolved, unresolved]
+  merge_group:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  gate:
+    # Injection-only wrapper: skip on nantobv/.github itself (no Copilot review
+    # flow on the meta-repo). A skipped job concludes successfully, so the
+    # required check passes there and never blocks org-policy PRs.
+    if: github.repository != 'nantobv/.github'
+    uses: nantobv/.github/.github/workflows/copilot-review-gate.yml@main # zizmor: ignore[unpinned-uses] same-org reusable workflow tracks @main by design; matching exception lives in .pinact.yaml.
+    permissions:
+      contents: read
+      pull-requests: read
