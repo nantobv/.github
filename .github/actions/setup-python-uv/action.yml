@@ -1,0 +1,55 @@
+# Composite: uv + Python + dependency sync.
+#
+# Collapses the install-uv -> install-python -> uv sync sequence that every
+# job in python-ci.yml repeats (lint, type, test, vuln) into one step, so
+# the four copies can't drift. Referenced as
+# `nantobv/.github/.github/actions/setup-python-uv@main` from the reusable
+# Python CI; GitHub fetches it automatically in the caller repo's context.
+#
+# Note: composite run-steps do NOT inherit a job's defaults.run
+# working-directory, so the project directory is an explicit input.
+name: Setup Python + uv
+description: Install a pinned uv, the requested Python, and sync deps (incl. dev), optionally locked.
+inputs:
+  python-version:
+    description: "Python version to install"
+    required: false
+    default: '3.12'
+  uv-version:
+    description: "Pinned uv version"
+    required: false
+    default: '0.11.14'
+  uv-sync-locked:
+    description: "Require the checked-in uv.lock during uv sync ('true'/'false')"
+    required: false
+    default: 'true'
+  working-directory:
+    description: "Directory containing pyproject.toml / uv.lock"
+    required: false
+    default: '.'
+runs:
+  using: composite
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      with:
+        version: ${{ inputs.uv-version }}
+        enable-cache: true
+
+    - name: Set up Python
+      shell: bash
+      env:
+        PYTHON_VERSION: ${{ inputs.python-version }}
+      run: uv python install "${PYTHON_VERSION}"
+
+    - name: Sync dependencies (incl. dev)
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        UV_SYNC_LOCKED: ${{ inputs.uv-sync-locked }}
+      run: |
+        args=(--all-extras --dev)
+        if [ "${UV_SYNC_LOCKED}" = "true" ]; then
+          args=(--locked "${args[@]}")
+        fi
+        uv sync "${args[@]}"

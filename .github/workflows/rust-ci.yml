@@ -64,6 +64,9 @@ jobs:
   fmt-clippy:
     name: Format & Clippy
     runs-on: ubuntu-latest
+    # Bound worst-case runtime (default GHA timeout is 360 min). Rust
+    # compiles are slow, so ceilings are larger than other languages'.
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -94,6 +97,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -148,6 +152,7 @@ jobs:
   doc:
     name: Docs
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -175,6 +180,7 @@ jobs:
     name: MSRV (${{ inputs.msrv }})
     if: ${{ inputs.msrv != '' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -198,6 +204,7 @@ jobs:
     name: cargo-deny
     if: ${{ inputs.run-cargo-deny }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -213,6 +220,7 @@ jobs:
     name: cargo-audit
     if: ${{ inputs.run-cargo-audit }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
