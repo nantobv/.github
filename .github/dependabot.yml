@@ -1,0 +1,22 @@
+# Dependabot for nantobv/.github itself.
+#
+# This repo enforces SHA-pinning on the whole org (self-ci.yml + zizmor,
+# required-pinact-check.yml), so it must keep its own pinned action SHAs
+# current — including the composite actions under .github/actions/, which
+# Dependabot's github-actions ecosystem also scans.
+#
+# Dependabot rewrites the pinned SHA *and* the trailing `# vX.Y.Z` comment,
+# which is exactly what `pinact run --check` expects. Patch+minor are grouped
+# into one weekly PR; majors stay individual for deliberate review.
+#
+# This mirrors the github-actions block of starters/dependabot.yml.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: ["patch", "minor"]

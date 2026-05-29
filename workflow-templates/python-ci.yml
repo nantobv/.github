@@ -11,6 +11,9 @@ on:
   push:
     branches: [$default-branch]
   pull_request:
+  # Run inside the merge queue too, so enabling a queue later doesn't let
+  # code merge without the CI that validates the actual merge result.
+  merge_group:
 
 permissions:
   contents: read

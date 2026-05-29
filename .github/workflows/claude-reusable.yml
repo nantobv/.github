@@ -37,6 +37,15 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
+# Serialize invocations per issue/PR. Two quick @claude mentions on the same
+# thread would otherwise spin up two runners that both checkout and push to
+# the same Claude branch — a race. cancel-in-progress is intentionally false:
+# a superseding mention should queue behind the in-flight reply, not kill it
+# mid-push. github.event here is the caller's triggering event.
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+
 jobs:
   claude:
     # Bound worst-case runtime. Default GHA job timeout is 360 minutes,
