@@ -1,0 +1,26 @@
+# Non-reusable wrapper that makes org-default Rust CI a *required* check on
+# tier=production && language=rust repos (wired by scripts/apply-org-policy.sh).
+#
+# Why this exists: GitHub's `workflows` ruleset rule rejects workflow_call-only
+# files (HTTP 422 — needs pull_request / pull_request_target / merge_group).
+# This wrapper supplies those triggers and delegates to the reusable Rust CI.
+#
+# Scope of the gate: correctness only (fmt, clippy, test, doc). cargo-audit is
+# decoupled (run-cargo-audit: false) so a fresh RustSec advisory can't block
+# every production repo's merges — it stays advisory via each repo's own ci.yml.
+# cargo-deny stays off (needs a deny.toml).
+name: Required - Rust CI
+
+on:
+  pull_request:
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    uses: nantobv/.github/.github/workflows/rust-ci.yml@main # zizmor: ignore[unpinned-uses] same-org reusable workflow tracks @main by design; matching exception lives in .pinact.yaml.
+    with:
+      toolchain: 'stable'
+      run-cargo-audit: false

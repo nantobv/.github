@@ -1,0 +1,26 @@
+# Non-reusable wrapper that makes org-default Python CI a *required* check on
+# tier=production && language=python repos (wired by scripts/apply-org-policy.sh).
+#
+# Why this exists: GitHub's `workflows` ruleset rule rejects workflow_call-only
+# files (HTTP 422 — needs pull_request / pull_request_target / merge_group).
+# This wrapper supplies those triggers and delegates to the reusable Python CI.
+#
+# Scope of the gate: correctness only (ruff lint+format, pytest). mypy stays
+# opt-in (paths vary per repo, set via each repo's own ci.yml) and vulnerability
+# scanning is decoupled (run-vuln-scan: false) so a fresh CVE can't block every
+# production repo's merges — pip-audit stays advisory via each repo's ci.yml.
+name: Required - Python CI
+
+on:
+  pull_request:
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  py:
+    uses: nantobv/.github/.github/workflows/python-ci.yml@main # zizmor: ignore[unpinned-uses] same-org reusable workflow tracks @main by design; matching exception lives in .pinact.yaml.
+    with:
+      python-version: '3.12'
+      run-vuln-scan: false

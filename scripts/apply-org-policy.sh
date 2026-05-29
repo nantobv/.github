@@ -68,8 +68,33 @@ upsert_property "tier" \
   "production" "internal" "experiment" "archived"
 
 # ---------------------------------------------------------------------------
-# 2. Production ruleset (with dynamic required-workflow injection)
+# 2. Rulesets
 # ---------------------------------------------------------------------------
+
+# Find an org ruleset by name (empty if absent), then PUT (update) or POST
+# (create) the given JSON payload. Idempotent.
+upsert_ruleset() {
+  local name="$1"
+  local payload="$2"
+  local existing_id
+  existing_id=$(gh api --paginate "orgs/${ORG}/rulesets" \
+    --jq ".[] | select(.name==\"${name}\") | .id" | head -n1 || true)
+
+  if [ -n "$existing_id" ]; then
+    printf '%s' "$payload" \
+      | gh api --method PUT "orgs/${ORG}/rulesets/${existing_id}" --input - >/dev/null
+    echo "    - updated ${name} (id=${existing_id})"
+  else
+    printf '%s' "$payload" \
+      | gh api --method POST "orgs/${ORG}/rulesets" --input - >/dev/null
+    echo "    - created ${name}"
+  fi
+}
+
+# nantobv/.github's numeric repo id, needed by every `workflows` rule.
+dot_github_repo_id=$(gh api "repos/${ORG}/${DOT_GITHUB_REPO}" --jq .id)
+
+# --- 2a. production-main: branch protection for every tier=production repo ---
 echo "==> Ruleset: production-main"
 
 # Optional: inject a `workflows` rule that requires a named workflow file
@@ -85,7 +110,6 @@ echo "==> Ruleset: production-main"
 REQUIRED_WORKFLOW_PATH="${REQUIRED_WORKFLOW_PATH:-}"
 
 if [ -n "$REQUIRED_WORKFLOW_PATH" ]; then
-  dot_github_repo_id=$(gh api "repos/${ORG}/${DOT_GITHUB_REPO}" --jq .id)
   echo "    - injecting required workflow: ${DOT_GITHUB_REPO}/${REQUIRED_WORKFLOW_PATH}@main"
   ruleset_payload=$(jq \
     --argjson repo_id "$dot_github_repo_id" \
@@ -105,17 +129,64 @@ else
   ruleset_payload=$(cat "$RULESET_JSON")
 fi
 
-existing_id=$(gh api --paginate "orgs/${ORG}/rulesets" \
-  --jq '.[] | select(.name=="production-main") | .id' || true)
+upsert_ruleset "production-main" "$ruleset_payload"
 
-if [ -n "$existing_id" ]; then
-  printf '%s' "$ruleset_payload" \
-    | gh api --method PUT "orgs/${ORG}/rulesets/${existing_id}" --input - >/dev/null
-  echo "    - updated (id=${existing_id})"
+# --- 2b. production-<lang>-ci: require org-default CI per language ----------
+#
+# Branch protection (production-main) only requires *a* PR; on its own it
+# lets a red build merge. These rulesets add a `workflows` rule that gates
+# merge on the matching required-<lang>-ci.yml wrapper, scoped to repos
+# tagged BOTH tier=production AND language=<lang> (repository_property
+# includes are ANDed). A python repo never has Go CI forced on it.
+#
+# Prerequisite: the required-<lang>-ci.yml wrappers must already be on
+# nantobv/.github@main, or the API rejects the `workflows` rule with 422.
+# Skip this block while bootstrapping with: APPLY_REQUIRED_CI=false
+APPLY_REQUIRED_CI="${APPLY_REQUIRED_CI:-true}"
+
+if [ "$APPLY_REQUIRED_CI" = "true" ]; then
+  echo "==> Rulesets: production-<lang>-ci (required CI gates)"
+  for entry in \
+    "go:.github/workflows/required-go-ci.yml" \
+    "python:.github/workflows/required-python-ci.yml" \
+    "rust:.github/workflows/required-rust-ci.yml"; do
+    lang="${entry%%:*}"
+    wrapper="${entry#*:}"
+    payload=$(jq -n \
+      --arg name "production-${lang}-ci" \
+      --arg lang "$lang" \
+      --argjson repo_id "$dot_github_repo_id" \
+      --arg path "$wrapper" \
+      '{
+        name: $name,
+        target: "branch",
+        enforcement: "active",
+        conditions: {
+          ref_name: { include: ["~DEFAULT_BRANCH"], exclude: [] },
+          repository_property: {
+            include: [
+              { name: "tier", property_values: ["production"] },
+              { name: "language", property_values: [$lang] }
+            ],
+            exclude: []
+          }
+        },
+        rules: [{
+          type: "workflows",
+          parameters: {
+            workflows: [{
+              repository_id: $repo_id,
+              path: $path,
+              ref: "refs/heads/main"
+            }]
+          }
+        }],
+        bypass_actors: []
+      }')
+    upsert_ruleset "production-${lang}-ci" "$payload"
+  done
 else
-  printf '%s' "$ruleset_payload" \
-    | gh api --method POST "orgs/${ORG}/rulesets" --input - >/dev/null
-  echo "    - created"
+  echo "==> Skipping production-<lang>-ci rulesets (APPLY_REQUIRED_CI=false)"
 fi
 
 # ---------------------------------------------------------------------------

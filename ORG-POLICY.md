@@ -54,26 +54,49 @@ Targets the default branch of every repo with `tier=production`. Rules:
 > self-merge after CI is green. The PR mechanism + thread-resolution is
 > what's enforced.
 
-### Required workflows (opt-in)
+### `production-<lang>-ci`
 
-The ruleset can also enforce a **required workflow** (`workflows` rule
-type) that gates merge on a named workflow file in `nantobv/.github`.
-It's opt-in because the GitHub API rejects reusable (workflow_call-only)
-workflows — the target must have a `pull_request`/`pull_request_target`/
-`merge_queue` trigger.
+`production-main` only requires that a PR *exists* — on its own it would let
+a red build self-merge. The actual CI gate lives in three companion rulesets,
+applied by default by `apply-org-policy.sh`:
 
-A non-reusable wrapper lives at `.github/workflows/required-pinact-check.yml`
-and calls the reusable `pinact-check.yml`. To turn the rule on once the
-wrapper is on `main`:
+| Ruleset | Targets (ANDed) | Requires |
+| --- | --- | --- |
+| `production-go-ci` | `tier=production` + `language=go` | `required-go-ci.yml` |
+| `production-python-ci` | `tier=production` + `language=python` | `required-python-ci.yml` |
+| `production-rust-ci` | `tier=production` + `language=rust` | `required-rust-ci.yml` |
+
+Each uses a `workflows` rule pointing at a non-reusable wrapper in
+`nantobv/.github`. Wrappers are required because the GitHub API rejects
+reusable (workflow_call-only) workflows — the target must have a
+`pull_request`/`pull_request_target`/`merge_group` trigger. Language scoping
+means a Python repo is never forced to run Go CI.
+
+> **Prerequisite:** the `required-<lang>-ci.yml` wrappers must already be on
+> `nantobv/.github@main`, or the API rejects the rule with HTTP 422. While
+> bootstrapping (wrappers not yet merged), skip this block:
+>
+> ```sh
+> APPLY_REQUIRED_CI=false ./scripts/apply-org-policy.sh
+> ```
+
+**Vulnerability scans are deliberately *not* part of the merge gate.** The
+wrappers call the reusables with `run-vuln-scan: false` (Rust:
+`run-cargo-audit: false`), so a freshly-disclosed CVE in a transitive dep
+can't turn every production repo's merges red overnight. Vuln scanning still
+runs as **advisory** in each repo's own `ci.yml` (and via the Dependabot
+starter / scheduled scans), where it's visible without blocking unrelated work.
+
+### Required pinact check (opt-in)
+
+A separate wrapper at `.github/workflows/required-pinact-check.yml` calls the
+reusable `pinact-check.yml`. It's injected into `production-main` only when
+opted in:
 
 ```sh
 REQUIRED_WORKFLOW_PATH=.github/workflows/required-pinact-check.yml \
   ./scripts/apply-org-policy.sh
 ```
-
-To extend with language-specific required workflows, add similar wrappers
-(`.github/workflows/required-{go,rust,python}-ci.yml`) and additional
-entries to the `workflows` rule in `scripts/apply-org-policy.sh`.
 
 ## Shared AGENTS.md block
 

@@ -1,0 +1,30 @@
+# Non-reusable wrapper that makes org-default Go CI a *required* check on
+# tier=production && language=go repos (wired by scripts/apply-org-policy.sh).
+#
+# Why this exists: GitHub's `workflows` ruleset rule rejects workflow_call-only
+# files (HTTP 422 — needs pull_request / pull_request_target / merge_group).
+# This wrapper supplies those triggers and delegates to the reusable Go CI.
+#
+# Scope of the gate: correctness only (build, vet, lint, test). Vulnerability
+# scanning is decoupled (run-vuln-scan: false) so a newly-disclosed CVE in a
+# transitive dep can't turn every production repo's merges red overnight —
+# vuln scans stay advisory via each repo's own ci.yml and/or a scheduled run.
+#
+# Inputs use go-version-file: go.mod, which assumes a standard root-level
+# module. Repos with a non-root go.mod keep their own caller workflow and
+# should not be tagged language=go for this ruleset.
+name: Required - Go CI
+
+on:
+  pull_request:
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    uses: nantobv/.github/.github/workflows/go-ci.yml@main # zizmor: ignore[unpinned-uses] same-org reusable workflow tracks @main by design; matching exception lives in .pinact.yaml.
+    with:
+      go-version-file: 'go.mod'
+      run-vuln-scan: false
