@@ -24,6 +24,11 @@ permissions:
 
 jobs:
   go:
+    # Injection-only: this wrapper exists to be required into other repos via
+    # the production-go-ci ruleset. The pull_request trigger also fires it on
+    # nantobv/.github's own PRs, where there's no go.mod — skip there. A
+    # skipped job still concludes the run successfully, so it never blocks.
+    if: github.repository != 'nantobv/.github'
     uses: nantobv/.github/.github/workflows/go-ci.yml@main # zizmor: ignore[unpinned-uses] same-org reusable workflow tracks @main by design; matching exception lives in .pinact.yaml.
     with:
       go-version-file: 'go.mod'
