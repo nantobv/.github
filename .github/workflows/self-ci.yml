@@ -17,6 +17,7 @@ jobs:
   workflow-lint:
     name: Workflow lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -37,4 +38,6 @@ jobs:
           enable-cache: true
 
       - name: zizmor
-        run: uv tool run zizmor==1.24.1 --min-severity=medium .github/workflows
+        # Scan composite actions too, so the SHA pins inside
+        # .github/actions/*/action.yml are held to the same bar as workflows.
+        run: uv tool run zizmor==1.24.1 --min-severity=medium .github/workflows .github/actions

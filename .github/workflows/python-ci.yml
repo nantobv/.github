@@ -69,6 +69,9 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    # Bound worst-case runtime (default GHA timeout is 360 min). Generous
+    # ceiling for a hung uv sync / ruff run, not a target.
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -77,26 +80,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - uses: nantobv/.github/.github/actions/setup-python-uv@main # zizmor: ignore[unpinned-uses] same-org composite action tracks @main by design; pinact exception declared org-wide in nantobv/.github/.pinact.yaml.
         with:
-          version: ${{ inputs.uv-version }}
-          enable-cache: true
-
-      - name: Set up Python
-        env:
-          PYTHON_VERSION: ${{ inputs.python-version }}
-        run: uv python install "${PYTHON_VERSION}"
-
-      - name: Sync dependencies (incl. dev)
-        env:
-          UV_SYNC_LOCKED: ${{ inputs.uv-sync-locked }}
-        run: |
-          args=(--all-extras --dev)
-          if [ "${UV_SYNC_LOCKED}" = "true" ]; then
-            args=(--locked "${args[@]}")
-          fi
-          uv sync "${args[@]}"
+          python-version: ${{ inputs.python-version }}
+          uv-version: ${{ inputs.uv-version }}
+          uv-sync-locked: ${{ inputs.uv-sync-locked }}
+          working-directory: ${{ inputs.working-directory }}
 
       - name: ruff check
         run: uv run ruff check .
@@ -108,6 +97,7 @@ jobs:
     name: Type check
     if: ${{ inputs.mypy-paths != '' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -116,26 +106,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - uses: nantobv/.github/.github/actions/setup-python-uv@main # zizmor: ignore[unpinned-uses] same-org composite action tracks @main by design; pinact exception declared org-wide in nantobv/.github/.pinact.yaml.
         with:
-          version: ${{ inputs.uv-version }}
-          enable-cache: true
-
-      - name: Set up Python
-        env:
-          PYTHON_VERSION: ${{ inputs.python-version }}
-        run: uv python install "${PYTHON_VERSION}"
-
-      - name: Sync dependencies (incl. dev)
-        env:
-          UV_SYNC_LOCKED: ${{ inputs.uv-sync-locked }}
-        run: |
-          args=(--all-extras --dev)
-          if [ "${UV_SYNC_LOCKED}" = "true" ]; then
-            args=(--locked "${args[@]}")
-          fi
-          uv sync "${args[@]}"
+          python-version: ${{ inputs.python-version }}
+          uv-version: ${{ inputs.uv-version }}
+          uv-sync-locked: ${{ inputs.uv-sync-locked }}
+          working-directory: ${{ inputs.working-directory }}
 
       - name: mypy
         env:
@@ -151,6 +127,7 @@ jobs:
     name: Test
     if: ${{ inputs.run-tests }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -159,29 +136,24 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - uses: nantobv/.github/.github/actions/setup-python-uv@main # zizmor: ignore[unpinned-uses] same-org composite action tracks @main by design; pinact exception declared org-wide in nantobv/.github/.pinact.yaml.
         with:
-          version: ${{ inputs.uv-version }}
-          enable-cache: true
-
-      - name: Set up Python
-        env:
-          PYTHON_VERSION: ${{ inputs.python-version }}
-        run: uv python install "${PYTHON_VERSION}"
-
-      - name: Sync dependencies (incl. dev)
-        env:
-          UV_SYNC_LOCKED: ${{ inputs.uv-sync-locked }}
-        run: |
-          args=(--all-extras --dev)
-          if [ "${UV_SYNC_LOCKED}" = "true" ]; then
-            args=(--locked "${args[@]}")
-          fi
-          uv sync "${args[@]}"
+          python-version: ${{ inputs.python-version }}
+          uv-version: ${{ inputs.uv-version }}
+          uv-sync-locked: ${{ inputs.uv-sync-locked }}
+          working-directory: ${{ inputs.working-directory }}
 
       - name: pytest
-        run: uv run pytest -ra --cov --cov-report=xml --cov-report=term
+        # Only request coverage when pytest-cov is actually installed in the
+        # resolved env; otherwise the --cov flags abort pytest before a single
+        # test runs, failing CI for a missing dev-dep rather than a real fault.
+        run: |
+          if uv run python -c 'import pytest_cov' >/dev/null 2>&1; then
+            uv run pytest -ra --cov --cov-report=xml --cov-report=term
+          else
+            echo "::notice::pytest-cov not installed; running pytest without coverage."
+            uv run pytest -ra
+          fi
 
       - name: Upload coverage artifact
         if: always()
@@ -199,6 +171,7 @@ jobs:
     name: Vulnerability scan
     if: ${{ inputs.run-vuln-scan }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -207,26 +180,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - uses: nantobv/.github/.github/actions/setup-python-uv@main # zizmor: ignore[unpinned-uses] same-org composite action tracks @main by design; pinact exception declared org-wide in nantobv/.github/.pinact.yaml.
         with:
-          version: ${{ inputs.uv-version }}
-          enable-cache: true
-
-      - name: Set up Python
-        env:
-          PYTHON_VERSION: ${{ inputs.python-version }}
-        run: uv python install "${PYTHON_VERSION}"
-
-      - name: Sync dependencies
-        env:
-          UV_SYNC_LOCKED: ${{ inputs.uv-sync-locked }}
-        run: |
-          args=(--all-extras --dev)
-          if [ "${UV_SYNC_LOCKED}" = "true" ]; then
-            args=(--locked "${args[@]}")
-          fi
-          uv sync "${args[@]}"
+          python-version: ${{ inputs.python-version }}
+          uv-version: ${{ inputs.uv-version }}
+          uv-sync-locked: ${{ inputs.uv-sync-locked }}
+          working-directory: ${{ inputs.working-directory }}
 
       - name: pip-audit
         env:
