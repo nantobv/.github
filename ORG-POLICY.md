@@ -87,35 +87,34 @@ can't turn every production repo's merges red overnight. Vuln scanning still
 runs as **advisory** in each repo's own `ci.yml` (and via the Dependabot
 starter / scheduled scans), where it's visible without blocking unrelated work.
 
-### `production-review-gate` + `production-copilot-review`
-
-Stops PRs merging while Copilot's (or an @claude) review feedback is
-unaddressed. Two cooperating rulesets, both scoped to `tier=production`:
+### `production-copilot-review` (advisory)
 
 | Ruleset | Rule | Effect |
 | --- | --- | --- |
-| `production-copilot-review` | `copilot_code_review` (`review_on_push: true`) | Copilot auto-reviews when a PR is ready **and re-reviews on every push** |
-| `production-review-gate` | `workflows` → `required-copilot-review-gate.yml` | A required check that stays **red** until Copilot has reviewed the current HEAD commit **and** every review thread is resolved |
+| `production-copilot-review` | `copilot_code_review` (`review_on_push: true`) | Requests a Copilot PR review (advisory — does **not** block merge) |
 
-**Why a custom check.** Native `required_review_thread_resolution` only blocks
-on review threads that *already exist*. Copilot reviews asynchronously, so a
-fast self-merge can land **before** Copilot posts its threads — there's nothing
-to resolve yet, the merge succeeds, and the comments arrive seconds later (this
-was happening in practice). The gate check is RED from the moment a PR opens and
-only goes green once Copilot has reviewed the exact code being merged and all
-threads are resolved. It re-evaluates on `pull_request_review` and
-`pull_request_review_thread` events, so resolving a thread flips it green
-without a re-push.
+**There is intentionally no `production-review-gate`.** A required-*workflow*
+rule that demanded "Copilot reviewed the current HEAD" deadlocked every PR and
+forced admin-bypass on every merge. It is unachievable in this environment, for
+three stacked reasons:
 
-`review_on_push: true` is **required** for this to work: with it off, the gate
-would deadlock the instant you push a fixup commit past Copilot's first review
-(HEAD would no longer match a reviewed commit, and Copilot wouldn't re-review).
+1. **Required workflows run only on `pull_request`/`merge_group`.** GitHub
+   ignores the `pull_request_review` trigger, so the gate fired once at push
+   time — before Copilot had reviewed the new HEAD — failed, and never re-ran.
+   (Evidence: every historical gate run was `event=pull_request`, all failed.)
+   It also declared `pull_request_review_thread`, which is a webhook event but
+   **not** a valid Actions trigger.
+2. **Copilot does not auto-review on push here.** Despite
+   `copilot_code_review.review_on_push: true`, a pushed HEAD is not reviewed
+   until explicitly requested — so there is nothing to turn the check green.
+3. **A review-event re-run is approval-gated.** When Copilot *does* review, the
+   resulting workflow run's triggering actor is the Copilot bot, so GitHub marks
+   it `action_required` and it never executes automatically.
 
-**Honest limit.** "Resolved" is a manual acknowledgment, not proof a comment was
-fixed — GitHub has no concept of "addressed". This forces conscious, per-thread
-resolution of the current code; for a solo self-merger it makes skipping a
-deliberate, loud act rather than an accidental one. Draft PRs and bot-authored
-PRs (e.g. Dependabot) are exempted to avoid deadlocks.
+What we keep is the part that actually works: `production-main`'s native
+`required_review_thread_resolution` already blocks merge on any unresolved
+review thread and re-evaluates the instant a thread is resolved (no workflow
+run involved). Copilot review stays advisory — request it when you want it.
 
 ### Required pinact check (opt-in)
 
