@@ -189,23 +189,28 @@ else
   echo "==> Skipping production-<lang>-ci rulesets (APPLY_REQUIRED_CI=false)"
 fi
 
-# --- 2c. Bot-review gate: Copilot must review HEAD + threads resolved --------
+# --- 2c. Copilot review: advisory only -------------------------------------
 #
-# Two cooperating rulesets, both scoped to tier=production:
-#  - production-copilot-review: turns on Copilot auto-review with
-#    review_on_push=true, so HEAD is always (re-)reviewed after a fixup push.
-#    Without this the review gate would deadlock once you push past Copilot's
-#    first pass.
-#  - production-review-gate: requires the required-copilot-review-gate.yml
-#    workflow, which stays red until Copilot has reviewed the current HEAD and
-#    every review thread is resolved (closes the merge-before-review race).
+# production-copilot-review enables Copilot's PR review (advisory). It is NOT a
+# merge gate.
 #
-# Same prerequisite as the language gates: the wrapper must be on
-# nantobv/.github@main. Skip while bootstrapping with: APPLY_REVIEW_GATE=false
+# There is deliberately NO production-review-gate ruleset. A required-workflow
+# rule demanding "Copilot reviewed HEAD" deadlocked every PR and is
+# unachievable in this environment:
+#   - GitHub runs ruleset-required workflows only on pull_request/merge_group,
+#     so the gate fired once at push time (before Copilot reviewed the new
+#     HEAD) and never re-ran;
+#   - Copilot does not auto-review on push here (review_on_push does not fire),
+#     so nothing turns the check green;
+#   - a review-event re-run is approval-gated — the Copilot bot is the
+#     triggering actor, so the run is action_required and never executes.
+# Thread resolution is already enforced natively by production-main
+# (required_review_thread_resolution); that is the working guarantee we keep.
+# Skip with: APPLY_REVIEW_GATE=false
 APPLY_REVIEW_GATE="${APPLY_REVIEW_GATE:-true}"
 
 if [ "$APPLY_REVIEW_GATE" = "true" ]; then
-  echo "==> Ruleset: production-copilot-review (Copilot auto-review, review_on_push)"
+  echo "==> Ruleset: production-copilot-review (advisory Copilot review)"
   copilot_payload=$(jq -n '{
     name: "production-copilot-review",
     target: "branch",
@@ -225,32 +230,19 @@ if [ "$APPLY_REVIEW_GATE" = "true" ]; then
   }')
   upsert_ruleset "production-copilot-review" "$copilot_payload"
 
-  echo "==> Ruleset: production-review-gate (required Copilot-review check)"
-  gate_payload=$(jq -n \
-    --argjson repo_id "$dot_github_repo_id" \
-    --arg path ".github/workflows/required-copilot-review-gate.yml" \
-    '{
-      name: "production-review-gate",
-      target: "branch",
-      enforcement: "active",
-      conditions: {
-        ref_name: { include: ["~DEFAULT_BRANCH"], exclude: [] },
-        repository_property: {
-          include: [{ name: "tier", property_values: ["production"] }],
-          exclude: []
-        }
-      },
-      rules: [{
-        type: "workflows",
-        parameters: {
-          workflows: [{ repository_id: $repo_id, path: $path, ref: "refs/heads/main" }]
-        }
-      }],
-      bypass_actors: []
-    }')
-  upsert_ruleset "production-review-gate" "$gate_payload"
+  # Idempotently remove the deadlocking required-workflow gate if an earlier
+  # apply (or a prior policy version) created it.
+  echo "==> Removing stale production-review-gate ruleset (deadlocking gate)"
+  gate_id=$(gh api --paginate "orgs/${ORG}/rulesets" \
+    --jq '.[] | select(.name=="production-review-gate") | .id' | head -n1 || true)
+  if [ -n "$gate_id" ]; then
+    gh api -X DELETE "orgs/${ORG}/rulesets/${gate_id}" >/dev/null
+    echo "    - removed production-review-gate (id=${gate_id})"
+  else
+    echo "    - not present (nothing to remove)"
+  fi
 else
-  echo "==> Skipping review-gate rulesets (APPLY_REVIEW_GATE=false)"
+  echo "==> Skipping Copilot-review ruleset (APPLY_REVIEW_GATE=false)"
 fi
 
 # ---------------------------------------------------------------------------
