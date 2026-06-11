@@ -87,6 +87,47 @@ can't turn every production repo's merges red overnight. Vuln scanning still
 runs as **advisory** in each repo's own `ci.yml` (and via the Dependabot
 starter / scheduled scans), where it's visible without blocking unrelated work.
 
+### Private Go modules (`NANTOBV_MODULES_TOKEN`)
+
+Some Go repos depend on private `github.com/nantobv/*` modules (e.g.
+cortex → hippocampus). Those fetches fail without credentials:
+proxy.golang.org returns 404 for private repos and the direct git fallback is
+unauthenticated. It can *appear* to work when a previous authenticated run
+warmed the Actions module cache for the identical `go.sum` — the first PR that
+bumps a private dep then turns the **required** Go gate red with no way to fix
+it from the PR. (Observed: the injected gate on cortex passed only via such a
+cache hit.)
+
+The fix is plumbed end-to-end: `go-ci.yml` accepts an optional
+`modules-token` secret, forwards it to the `setup-go` composite, which (only
+when non-empty) configures a `git insteadOf` rewrite plus
+`GOPRIVATE=github.com/nantobv/*`. `required-go-ci.yml` and the Go workflow
+template pass `secrets.NANTOBV_MODULES_TOKEN` through; ruleset-injected runs
+resolve it in the target repo's context.
+
+**Operational contract:**
+
+- `NANTOBV_MODULES_TOKEN` is an **org-level** Actions secret with visibility
+  **private repositories** — *not* `selected`. (`selected` resolves to an
+  empty string in any repo missing from the allowlist, which silently
+  reintroduces the deadlock; this exact failure mode has bitten before.)
+- The token needs read-only (`contents: read`) access to the private
+  `nantobv/*` repos that publish modules. A fine-grained PAT works; **set a
+  rotation reminder** — an expired token re-deadlocks the gate on the next
+  cold cache, and the error will look like a module-fetch 404, not an auth
+  prompt.
+- Repos with only public deps need nothing: the secret resolves empty and the
+  auth step no-ops.
+- Exposure: any workflow run in a private nantobv repo can read the secret
+  (PR branches included). Acceptable for a single-owner org; revisit if
+  outside collaborators ever get push access.
+
+Promote/rotate it with:
+
+```sh
+gh secret set NANTOBV_MODULES_TOKEN --org nantobv --visibility private
+```
+
 ### `production-copilot-review` (advisory)
 
 | Ruleset | Rule | Effect |

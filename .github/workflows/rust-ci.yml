@@ -48,8 +48,11 @@ on:
 permissions:
   contents: read
 
+# Workflow-specific suffix: github.workflow resolves to the *caller's*
+# name inside a called reusable, so without it two language reusables in
+# one caller (language=mixed repo) would share a group and cancel each other.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-rust-ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:

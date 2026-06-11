@@ -33,3 +33,11 @@ jobs:
     with:
       go-version-file: 'go.mod'
       run-vuln-scan: false
+    # Ruleset-injected runs execute in the target repo's context, so this
+    # resolves against the target repo's reachable secrets (the org-level
+    # NANTOBV_MODULES_TOKEN, visibility: private repositories). Repos with
+    # only public deps get an empty value and the auth step no-ops. Without
+    # it, a private github.com/nantobv/* dependency makes this required
+    # gate fail on any cold module cache — an unfixable red check.
+    secrets:
+      modules-token: ${{ secrets.NANTOBV_MODULES_TOKEN }}

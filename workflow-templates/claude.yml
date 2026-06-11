@@ -41,11 +41,12 @@ permissions:
 
 jobs:
   claude:
-    # Short-circuit before invoking the reusable: only fire when an
-    # @claude mention comes from OWNER/MEMBER/COLLABORATOR. Without
-    # this, every issue comment / PR review on this repo spins up a
-    # runner just to let the reusable's identical filter no-op. The
-    # reusable keeps the same filter as defense-in-depth.
+    # SECURITY BOUNDARY: only fire when an @claude mention comes from
+    # OWNER/MEMBER/COLLABORATOR. The reusable workflow has NO gate of
+    # its own (the triggering webhook payload isn't reliably visible in
+    # the workflow_call callee — see claude-reusable.yml's header), so
+    # this caller `if` is the only thing standing between an arbitrary
+    # commenter and a write-scoped run with the OAuth token.
     if: |
       (github.event_name == 'issue_comment' &&
         contains(github.event.comment.body, '@claude') &&
