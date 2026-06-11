@@ -46,9 +46,12 @@ runs:
         MODULES_TOKEN: ${{ inputs.modules-token }}
       run: |
         if [ -n "${MODULES_TOKEN}" ]; then
+          # Scope the rewrite to the nantobv org so the token is only ever
+          # presented for the private modules that need it, not for every
+          # public github.com fetch.
           git config --global \
-            url."https://x-access-token:${MODULES_TOKEN}@github.com/".insteadOf \
-            "https://github.com/"
+            url."https://x-access-token:${MODULES_TOKEN}@github.com/nantobv/".insteadOf \
+            "https://github.com/nantobv/"
           echo "GOPRIVATE=github.com/nantobv/*" >> "$GITHUB_ENV"
           echo "Private nantobv module access configured."
         else
