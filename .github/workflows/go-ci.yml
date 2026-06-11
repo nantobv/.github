@@ -54,14 +54,25 @@ on:
         description: "Pinned osv-scanner/v2 module version"
         type: string
         default: 'v2.3.8'
+    secrets:
+      modules-token:
+        description: >-
+          Optional token with read access to private github.com/nantobv
+          repos, for private module dependencies. Repos with only public
+          deps can omit it. See ORG-POLICY.md "Private Go modules".
+        required: false
 
 # Least-privilege default. Individual jobs upgrade as needed.
 permissions:
   contents: read
 
-# Cancel superseded PR runs; keep main runs.
+# Cancel superseded PR runs; keep main runs. Inside a called reusable
+# workflow, github.workflow resolves to the *caller's* workflow name, so a
+# workflow-specific suffix keeps two language reusables invoked from one
+# caller (e.g. a language=mixed repo's "CI") from sharing a group and
+# cancelling each other. Same reasoning as pinact-check.yml's "-pinact".
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-go-ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -88,6 +99,7 @@ jobs:
           go-version: ${{ inputs.go-version }}
           go-version-file: ${{ inputs.go-version-file }}
           working-directory: ${{ inputs.working-directory }}
+          modules-token: ${{ secrets.modules-token }}
 
       - name: gofumpt (stricter gofmt)
         env:
@@ -209,6 +221,7 @@ jobs:
           go-version: ${{ inputs.go-version }}
           go-version-file: ${{ inputs.go-version-file }}
           working-directory: ${{ inputs.working-directory }}
+          modules-token: ${{ secrets.modules-token }}
 
       - name: Build (smoke test all packages compile)
         run: go build ./...
@@ -250,6 +263,7 @@ jobs:
           go-version: ${{ inputs.go-version }}
           go-version-file: ${{ inputs.go-version-file }}
           working-directory: ${{ inputs.working-directory }}
+          modules-token: ${{ secrets.modules-token }}
 
       - name: govulncheck
         env:

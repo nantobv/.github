@@ -39,11 +39,26 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Fetch canonical AGENTS.shared.md
+      - name: Checkout canonical AGENTS.shared.md
+        # A second checkout instead of curling raw.githubusercontent.com:
+        # the raw CDN serves up to ~5-minute-stale content (false pass/fail
+        # right after the canonical file changes), while git always returns
+        # the current tip of main. Same visibility constraint either way
+        # (the default token reads nantobv/.github while it is public).
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: nantobv/.github
+          ref: main
+          path: .nantobv-canonical
+          sparse-checkout: |
+            AGENTS.shared.md
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Stage canonical copy outside the work tree
         run: |
-          curl -sSfL \
-            "https://raw.githubusercontent.com/nantobv/.github/main/AGENTS.shared.md" \
-            -o /tmp/AGENTS.shared.md
+          mv .nantobv-canonical/AGENTS.shared.md /tmp/AGENTS.shared.md
+          rm -rf .nantobv-canonical
 
       - name: Verify embedded block matches canonical
         run: |

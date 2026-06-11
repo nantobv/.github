@@ -22,6 +22,12 @@ jobs:
     uses: nantobv/.github/.github/workflows/go-ci.yml@main
     with:
       go-version-file: 'go.mod'
+    # Org-level secret (visibility: private repositories) used by go mod
+    # download for private github.com/nantobv/* dependencies. Resolves
+    # empty in repos that can't reach it; the auth step then no-ops, so
+    # public-deps-only repos can keep or drop this line freely.
+    secrets:
+      modules-token: ${{ secrets.NANTOBV_MODULES_TOKEN }}
 
   pinact:
     uses: nantobv/.github/.github/workflows/pinact-check.yml@main

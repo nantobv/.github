@@ -21,10 +21,12 @@ permissions:
 jobs:
   py:
     uses: nantobv/.github/.github/workflows/python-ci.yml@main
-    with:
-      python-version: '3.12'
-      # Set the directories you want mypy --strict to type-check (empty disables):
-      # mypy-paths: 'src tests'
+    # By default CI follows the repo's own .python-version / requires-python.
+    # Uncomment to pin a Python explicitly and/or turn on mypy --strict for
+    # the listed paths (empty/absent disables mypy):
+    # with:
+    #   python-version: '3.12'
+    #   mypy-paths: 'src tests'
 
   pinact:
     uses: nantobv/.github/.github/workflows/pinact-check.yml@main

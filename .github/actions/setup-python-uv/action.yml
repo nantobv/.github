@@ -12,9 +12,9 @@ name: Setup Python + uv
 description: Install a pinned uv, the requested Python, and sync deps (incl. dev), optionally locked.
 inputs:
   python-version:
-    description: "Python version to install"
+    description: "Python version to install. Empty = let uv pick from the repo's .python-version / requires-python during sync."
     required: false
-    default: '3.12'
+    default: ''
   uv-version:
     description: "Pinned uv version"
     required: false
@@ -37,6 +37,11 @@ runs:
         enable-cache: true
 
     - name: Set up Python
+      # Only when a version is pinned explicitly. With no version, uv sync
+      # below auto-installs the interpreter the repo itself declares
+      # (.python-version or requires-python), so the gate can't drift from
+      # what the repo actually runs.
+      if: ${{ inputs.python-version != '' }}
       shell: bash
       env:
         PYTHON_VERSION: ${{ inputs.python-version }}
